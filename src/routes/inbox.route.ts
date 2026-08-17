@@ -15,6 +15,19 @@ export function registerInboxRoute(app: FastifyInstance, config: Config, deps: I
 
     const rawBody = typeof request.body === "string" ? request.body : "";
 
+    // Only ever resolve (i.e. fetch) the one actor this bridge is configured to trust.
+    // Without this check, an unauthenticated POST could put an arbitrary URL — e.g. a
+    // cloud metadata endpoint or an internal service — in the Signature header's keyId,
+    // and actorCache.resolvePublicKeyPem would dutifully fetch it server-side (SSRF)
+    // *before* we'd otherwise reject the request for being from the wrong actor.
+    const resolvePublicKeyPem = async (keyId: string): Promise<string> => {
+      const claimedActor = actorUriFromKeyId(keyId);
+      if (claimedActor !== config.allowedActorUri) {
+        throw new SignatureVerificationError(`keyId actor "${claimedActor}" is not the allowed actor`);
+      }
+      return deps.actorCache.resolvePublicKeyPem(keyId);
+    };
+
     let verifiedActorUri: string;
     try {
       const { keyId } = await verifySignature(
@@ -24,7 +37,7 @@ export function registerInboxRoute(app: FastifyInstance, config: Config, deps: I
           headers: request.headers as Record<string, string | string[] | undefined>,
           rawBody,
         },
-        (kid) => deps.actorCache.resolvePublicKeyPem(kid),
+        resolvePublicKeyPem,
       );
       verifiedActorUri = actorUriFromKeyId(keyId);
     } catch (err) {

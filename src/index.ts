@@ -13,6 +13,19 @@ import { logger } from "./util/logger";
 
 const ATTACHMENT_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+// Last-resort safety net: a long-running personal service should log loudly and exit
+// (letting Docker/systemd restart it) rather than silently hang or crash traceless.
+// Everything on the hot paths (SMTP onMail, inbox handling) already has its own
+// try/catch — these only fire for something we didn't anticipate.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "unhandled promise rejection");
+  process.exit(1);
+});
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "uncaught exception");
+  process.exit(1);
+});
+
 async function main(): Promise<void> {
   const config = loadConfig();
 

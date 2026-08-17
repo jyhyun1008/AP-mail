@@ -188,4 +188,51 @@ describe("POST /users/:username/inbox — full signature-verify-to-email flow", 
 
     await app.close();
   });
+
+  it("never fetches the signer's actor document when keyId claims an actor other than ALLOWED_ACTOR_URI (SSRF guard)", async () => {
+    const resolvePublicKeyPem = vi.fn().mockResolvedValue(remoteKeys.publicKey);
+    const stubActorCache: ActorCache = { resolvePublicKeyPem, resolveInboxUrl: vi.fn() };
+    const sendReplyEmail = vi.fn();
+
+    const app = buildServer(config, {
+      publicKeyPem: "unused",
+      config,
+      actorCache: stubActorCache,
+      notesRepo,
+      privateKeyPem: "unused",
+      keyId: "https://mail.example.com/users/jay#main-key",
+      sendReplyEmail,
+    });
+
+    const body = JSON.stringify({ type: "Create", actor: "https://attacker.example/actor", object: { type: "Note", id: "x", inReplyTo: "note://dm-1" } });
+    // A validly-signed request, but the keyId's actor is attacker-controlled — e.g. a
+    // cloud metadata URL — and must never reach actorCache.resolvePublicKeyPem.
+    const maliciousKeyId = "http://169.254.169.254/latest/meta-data/#main-key";
+    const signed = signRequest({
+      privateKeyPem: remoteKeys.privateKey,
+      keyId: maliciousKeyId,
+      method: "POST",
+      url: "https://mail.example.com/users/jay/inbox",
+      body,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/users/jay/inbox",
+      headers: {
+        host: signed.Host,
+        date: signed.Date,
+        digest: signed.Digest,
+        signature: signed.Signature,
+        "content-type": "application/activity+json",
+      },
+      payload: body,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(resolvePublicKeyPem).not.toHaveBeenCalled();
+    expect(sendReplyEmail).not.toHaveBeenCalled();
+
+    await app.close();
+  });
 });
