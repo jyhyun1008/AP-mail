@@ -1,0 +1,61 @@
+# Standalone deployable — apmail doesn't need to run on the same host, network, or
+# docker-compose stack as your Misskey instance. The two are only ever related over
+# plain HTTPS federation (WebFinger + signed Create{Note} activities), exactly like any
+# two ActivityPub servers, regardless of where either one lives.
+#
+# The one thing that *does* need to be reachable is Postfix — wherever you decide to run
+# it. This file defaults to the common case (Postfix on this same host, outside Docker);
+# see the `MAIL_RELAY_HOST`/`INBOUND_SMTP_HOST` notes below and in
+# ../docs/dns-and-mail-setup.md for the remote-Postfix alternative.
+#
+# Run with: `docker compose -f docker/docker-compose.yml --env-file .env up -d --build`
+# (from the repo root, so the build `context: ..` below resolves correctly).
+
+services:
+  apmail:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: apmail
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      # Must bind all interfaces inside the container so Docker's port publishing
+      # (arriving via eth0, not the container's own loopback) can reach it — overrides
+      # whatever INBOUND_SMTP_HOST is set to in .env, which stays "127.0.0.1" there for
+      # the bare-metal/network_mode:host case. This override only matters for this
+      # bridge-network deployment.
+      INBOUND_SMTP_HOST: "0.0.0.0"
+    ports:
+      # HTTP (WebFinger/actor/inbox/media) — wherever your reverse proxy lives.
+      # Same host as this container: 127.0.0.1 binding below is enough.
+      # Proxy on a different host: drop the "127.0.0.1:" prefix (bind 0.0.0.0 instead)
+      # and put a firewall in front rather than exposing it to the whole internet.
+      - "127.0.0.1:${HTTP_PORT:-8080}:8080"
+      # Inbound SMTP — wherever Postfix ends up, it needs to reach this port.
+      #   - Postfix on this same host, outside Docker: 127.0.0.1 binding below is enough.
+      #   - Remote Postfix: drop the "127.0.0.1:" prefix and firewall it to just that
+      #     Postfix server's IP (see docs/dns-and-mail-setup.md).
+      - "127.0.0.1:${INBOUND_SMTP_PORT:-2525}:2525"
+    extra_hosts:
+      # Lets MAIL_RELAY_HOST=host.docker.internal reach Postfix if it ends up running
+      # directly on this same host, outside Docker. Docker Desktop resolves
+      # host.docker.internal automatically; plain Docker Engine on Linux needs this line
+      # to do the same. Harmless/unused if Postfix ends up remote instead (point
+      # MAIL_RELAY_HOST at its real hostname/IP in that case).
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - apmail-keys:/data/keys
+      - apmail-db:/data/db
+      - apmail-attachments:/data/attachments
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+
+volumes:
+  apmail-keys:
+  apmail-db:
+  apmail-attachments:

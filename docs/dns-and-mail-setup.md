@@ -1,23 +1,29 @@
 # DNS, Postfix, and reverse proxy setup
 
-Everything here is a manual, one-time step on your VPS/DNS provider — none of it is
-something the bridge can do for you.
+Everything here is a manual, one-time step on whatever server(s) you choose — none of it
+is something the bridge can do for you.
+
+**Note on topology**: this bridge doesn't need to run anywhere near your Misskey
+instance — the two only ever talk over plain HTTPS federation (WebFinger + signed
+activities), exactly like any two unrelated ActivityPub servers. The only thing that
+does need to be reachable is Postfix, wherever you decide to put it (same host as the
+bridge, or a separate one) — both are covered below.
 
 ## 1. DNS
 
 On the domain that will host the bridge (`BRIDGE_DOMAIN` — a dedicated subdomain, e.g.
-`mail.example.com`, kept separate from your Misskey instance's own domain):
+`mail.example.com`; doesn't need to relate to your Misskey instance's domain at all):
 
 | Record | Value |
 |---|---|
-| `A`/`AAAA` | `mail.example.com` → your VPS IP (for HTTPS: WebFinger/actor/inbox/media) |
+| `A`/`AAAA` | `mail.example.com` → the bridge's server IP (for HTTPS: WebFinger/actor/inbox/media) |
 | `MX` | `mail.example.com` → `mail.example.com`, priority 10 (or a dedicated mail hostname) |
 | `TXT` (SPF) | `v=spf1 mx ~all` (adjust if Postfix also relays through something else) |
 | `TXT` (DKIM) | published once you've run `opendkim-genkey` — see step 2 |
 | `TXT` (DMARC) | `_dmarc.mail.example.com` → e.g. `v=DMARC1; p=none; rua=mailto:you@wherever` |
 
-Also set the VPS's **reverse DNS (PTR)** to resolve to the mail hostname, if your
-provider allows it — this affects deliverability more than almost anything else.
+Also set the mail server's **reverse DNS (PTR)** to resolve to the mail hostname, if
+your provider allows it — this affects deliverability more than almost anything else.
 
 **Expect outbound mail from a brand-new domain/IP to land in spam at Gmail/Outlook/etc.
 at first**, regardless of correct SPF/DKIM/DMARC. This is normal cold-reputation
@@ -26,8 +32,10 @@ sending. Already priced in given this is a from-scratch domain.
 
 ## 2. Postfix
 
-Add the bridge's mail domain and route it to the bridge's inbound SMTP listener instead
-of local mailbox delivery:
+Where Postfix runs changes a couple of values below but not the shape of the config.
+
+**Inbound** — route the bridge's mail domain to its inbound SMTP listener instead of
+local mailbox delivery:
 
 ```
 # /etc/postfix/main.cf
@@ -37,7 +45,7 @@ transport_maps = hash:/etc/postfix/transport
 
 ```
 # /etc/postfix/transport
-mail.example.com   smtp:127.0.0.1:2525
+mail.example.com   smtp:<bridge-host>:<INBOUND_SMTP_PORT>
 ```
 
 ```
@@ -45,10 +53,16 @@ postmap /etc/postfix/transport
 systemctl reload postfix
 ```
 
-Adjust `127.0.0.1:2525` to match `INBOUND_SMTP_HOST`/`INBOUND_SMTP_PORT` in `.env` — the
-defaults match this example. Double-check `mail.example.com` isn't already claimed by an
-existing `virtual_alias_maps`/catch-all entry that would intercept mail before the
-transport rule applies.
+- **Postfix on the same host as the bridge**: `<bridge-host>` = `127.0.0.1`,
+  `<INBOUND_SMTP_PORT>` defaults to `2525` — matches `.env`'s defaults directly.
+- **Postfix on a different host**: `<bridge-host>` = the bridge's real
+  hostname/IP, and the bridge's Docker deployment needs that port actually published to
+  the network (see the Docker section below) rather than bound to `127.0.0.1` only —
+  firewall it to just this Postfix server's IP rather than leaving it open.
+
+Double-check `mail.example.com` isn't already claimed by an existing
+`virtual_alias_maps`/catch-all entry that would intercept mail before the transport rule
+applies.
 
 **DKIM** (recommended, via `opendkim`):
 
@@ -59,18 +73,25 @@ opendkim-genkey -b 2048 -d mail.example.com -s mail -D /etc/opendkim/keys
 # one-time systemwide Postfix config change, not specific to this bridge)
 ```
 
-**Outbound submission** (the bridge relays *out* through Postfix too, for reply emails):
-confirm `mynetworks` in `main.cf` includes `127.0.0.1/32` so Postfix accepts local
-relaying without auth, or set `MAIL_RELAY_USER`/`MAIL_RELAY_PASS` in `.env` if you'd
-rather require SMTP AUTH even from localhost.
+**Outbound submission** (the bridge relays *out* through Postfix too, for reply emails —
+`MAIL_RELAY_HOST`/`MAIL_RELAY_PORT` in `.env`):
+
+- **Postfix on the same host**: confirm `mynetworks` in `main.cf` includes
+  `127.0.0.1/32` (bare metal) so Postfix accepts local relaying without auth. Docker
+  deployments should use `MAIL_RELAY_HOST=host.docker.internal` instead of `127.0.0.1`
+  — see the Docker section.
+- **Postfix on a different host**: "trust localhost" doesn't apply across a network —
+  set `MAIL_RELAY_USER`/`MAIL_RELAY_PASS` in `.env` and configure Postfix's submission
+  port (587) to require SMTP AUTH.
 
 ## 3. Reverse proxy
 
-Whatever already fronts your Misskey instance (nginx/Caddy/Traefik) needs a new
-server block for `mail.example.com`, forwarding to the bridge's HTTP port
-(`HTTP_PORT`, default 8080) with TLS (Let's Encrypt, same as your Misskey setup).
-No path-based routing is needed — every route (`/.well-known/webfinger`, `/users/...`,
-`/media/...`, `/healthz`) forwards straightforwardly. Example (nginx):
+The bridge needs a reverse proxy in front of it for TLS — this can be a proxy you
+already run for something else (Misskey or otherwise) or a dedicated one, doesn't
+matter. New server block for `mail.example.com`, forwarding to the bridge's HTTP port
+(`HTTP_PORT`, default 8080). No path-based routing is needed — every route
+(`/.well-known/webfinger`, `/users/...`, `/media/...`, `/healthz`) forwards
+straightforwardly. Example (nginx):
 
 ```nginx
 server {
@@ -89,6 +110,10 @@ server {
 }
 ```
 
+If the proxy is on a different host than the bridge, point `proxy_pass` at the bridge's
+real address instead of `127.0.0.1`, and make sure the bridge's HTTP port is actually
+reachable from there (see the Docker section's port-publishing notes).
+
 Make sure `Host` is passed through unmodified — the bridge's actor IDs are derived from
 `BRIDGE_DOMAIN`, and they need to match what's actually reachable at that host.
 
@@ -102,9 +127,24 @@ handled at the proxy layer if you want it at all.
 See [misskey-followup-caveat.md](./misskey-followup-caveat.md) — this is the one step
 that can only be verified empirically, after everything above is live.
 
-## Docker note
+## Docker: same-host vs. remote Postfix
 
-If deploying via `docker/docker-compose.snippet.yml` (`network_mode: host`), all of the
-above is unchanged — `127.0.0.1` inside the container is the same as the host's, so
-Postfix's `transport_maps` and the bridge's `MAIL_RELAY_HOST` both keep working exactly
-as described.
+`docker/docker-compose.yml` runs the bridge on a normal Docker bridge network (not
+`network_mode: host`), specifically so it doesn't assume anything about where Postfix
+ends up:
+
+- **Postfix on the same host, outside Docker** (the common case): the compose file's
+  default port bindings (`127.0.0.1:...`) already work — Postfix reaches the bridge at
+  `127.0.0.1:<INBOUND_SMTP_PORT>` exactly as in the bare-metal instructions above, and
+  the bridge reaches Postfix via `MAIL_RELAY_HOST=host.docker.internal` (the compose
+  file's `extra_hosts` entry makes that resolve correctly on Linux, where Docker doesn't
+  do this automatically the way Docker Desktop does).
+- **Postfix on a different host entirely**: edit the `ports:` entries in
+  `docker/docker-compose.yml` to drop the `127.0.0.1:` prefix (so the port is reachable
+  from outside this host — firewall it to just that Postfix server's IP), and set
+  `MAIL_RELAY_HOST`/`MAIL_RELAY_USER`/`MAIL_RELAY_PASS` in `.env` to that host's real
+  address and SMTP AUTH credentials.
+
+Either way, `INBOUND_SMTP_HOST` doesn't need to be touched in `.env` — the compose file
+overrides it to `0.0.0.0` itself (see its comments), which is what makes Docker's port
+publishing reach the process at all.

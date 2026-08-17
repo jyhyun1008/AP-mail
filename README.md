@@ -41,25 +41,26 @@ useful right after deploying (see
 
 ## Deploying
 
-This needs a domain you control (for the bridge's own subdomain), a VPS, and a
-self-hosted Postfix instance — none of which the bridge sets up for you. Once those
-exist:
+This needs a domain you control (for the bridge's own subdomain), a server, and a
+self-hosted Postfix instance — none of which the bridge sets up for you. Crucially,
+**none of this needs to run anywhere near your Misskey instance** — the bridge only ever
+talks to it over plain HTTPS federation, like any two ActivityPub servers. The only
+thing that does need to be reachable is Postfix, wherever you end up putting it (same
+host as the bridge, or a separate one — both are supported, see
+[docs/dns-and-mail-setup.md](./docs/dns-and-mail-setup.md)).
 
 1. [docs/dns-and-mail-setup.md](./docs/dns-and-mail-setup.md) — DNS records, Postfix
-   config, reverse proxy.
-2. `docker/docker-compose.snippet.yml` — merge into your existing Misskey compose setup
-   (runs with `network_mode: host`; the doc comment there explains why).
+   config (same-host or remote), reverse proxy.
+2. `docker/docker-compose.yml` — standalone; doesn't merge into anything else.
 3. [docs/misskey-followup-caveat.md](./docs/misskey-followup-caveat.md) — the one thing
    that has to be verified empirically after deploy, not guaranteed by the code.
 4. [docs/runbook.md](./docs/runbook.md) — redeploying, logs, key rotation, inspecting
    the DB, attachment retention.
 
 ```bash
-docker compose -f docker-compose.yml -f docker/docker-compose.snippet.yml build apmail
-docker compose -f docker-compose.yml -f docker/docker-compose.snippet.yml up -d apmail
+cp .env.example .env   # fill in real values first
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build
 ```
-
-(or copy the service block directly into your existing compose file — either works.)
 
 ## Configuration
 
