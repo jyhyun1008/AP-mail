@@ -6,6 +6,8 @@ const config = {
   bridgeDomain: "mail.example.com",
   bridgeUsername: "jay",
   bridgeActorType: "Service" as const,
+  bridgeActorName: undefined,
+  bridgeActorIconUrl: undefined,
 };
 
 const fakePublicKeyPem = "-----BEGIN PUBLIC KEY-----\nFAKE\n-----END PUBLIC KEY-----\n";
@@ -43,5 +45,22 @@ describe("buildActorDocument", () => {
       publicKeyPem: fakePublicKeyPem,
     });
     expect(doc["@context"]).toContain("https://www.w3.org/ns/activitystreams");
+  });
+
+  it("falls back to a generic name and omits icon when neither is configured", () => {
+    const doc = buildActorDocument(config, fakePublicKeyPem);
+
+    expect(doc.name).toBe("Mail bridge for jay");
+    expect(doc).not.toHaveProperty("icon");
+  });
+
+  it("uses a configured display name and icon URL when set", () => {
+    const doc = buildActorDocument(
+      { ...config, bridgeActorName: "Jay's Mail Bridge", bridgeActorIconUrl: "https://gongran.studio/files/avatar.png" },
+      fakePublicKeyPem,
+    );
+
+    expect(doc.name).toBe("Jay's Mail Bridge");
+    expect(doc.icon).toEqual({ type: "Image", url: "https://gongran.studio/files/avatar.png" });
   });
 });

@@ -7,6 +7,10 @@ export interface Config {
   bridgeDomain: string;
   bridgeUsername: string;
   bridgeActorType: "Service" | "Person";
+  /** Display name shown in Misskey clients. Purely cosmetic — falls back to a generic label if unset. */
+  bridgeActorName: string | undefined;
+  /** Avatar image URL for the bot actor — e.g. your real Misskey account's own avatar URL, so the bot doesn't show up as a faceless default icon. */
+  bridgeActorIconUrl: string | undefined;
   allowedActorUri: string;
 
   httpPort: number;
@@ -83,6 +87,8 @@ export function loadConfig(): Config {
     bridgeDomain: required("BRIDGE_DOMAIN"),
     bridgeUsername: required("BRIDGE_USERNAME"),
     bridgeActorType,
+    bridgeActorName: process.env.BRIDGE_ACTOR_NAME || undefined,
+    bridgeActorIconUrl: process.env.BRIDGE_ACTOR_ICON_URL || undefined,
     allowedActorUri: required("ALLOWED_ACTOR_URI"),
 
     httpPort: optionalInt("HTTP_PORT", 8080),

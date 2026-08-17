@@ -20,6 +20,8 @@ const config: Config = {
   bridgeDomain: "mail.example.com",
   bridgeUsername: "jay",
   bridgeActorType: "Service",
+  bridgeActorName: undefined,
+  bridgeActorIconUrl: undefined,
   allowedActorUri: "https://misskey.example.com/users/jay",
   httpPort: 0,
   httpHost: "127.0.0.1",

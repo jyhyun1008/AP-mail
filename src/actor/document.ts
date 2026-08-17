@@ -9,7 +9,7 @@ export type ActorDocument = ReturnType<typeof buildActorDocument>;
  * publicly — it only sends and receives direct Notes with the one allowed recipient).
  */
 export function buildActorDocument(
-  config: Pick<Config, "bridgeDomain" | "bridgeUsername" | "bridgeActorType">,
+  config: Pick<Config, "bridgeDomain" | "bridgeUsername" | "bridgeActorType" | "bridgeActorName" | "bridgeActorIconUrl">,
   publicKeyPem: string,
 ) {
   const id = actorId(config);
@@ -19,10 +19,18 @@ export function buildActorDocument(
     id,
     type: config.bridgeActorType,
     preferredUsername: config.bridgeUsername,
-    name: `Mail bridge for ${config.bridgeUsername}`,
+    name: config.bridgeActorName || `Mail bridge for ${config.bridgeUsername}`,
     summary: "Personal email-to-DM bridge. Not a public bot; only relays mail for its owner.",
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
+    ...(config.bridgeActorIconUrl
+      ? {
+          icon: {
+            type: "Image",
+            url: config.bridgeActorIconUrl,
+          },
+        }
+      : {}),
     publicKey: {
       id: `${id}#main-key`,
       owner: id,
