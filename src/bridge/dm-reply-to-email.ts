@@ -1,3 +1,4 @@
+import type { Config } from "../config";
 import type { NotesRepo } from "../store/notes.repo";
 import { logger } from "../util/logger";
 import { stripHtml } from "../util/strip-html";
@@ -5,6 +6,7 @@ import type { ReplyEmailParams } from "../mail/send";
 import { resolveRootEmailThread } from "./thread-resolver";
 
 export interface DmReplyToEmailDeps {
+  config: Pick<Config, "bridgeUsername" | "bridgeDomain">;
   notesRepo: NotesRepo;
   sendReplyEmail: (params: ReplyEmailParams) => Promise<void>;
 }
@@ -17,12 +19,34 @@ interface ApNoteObject {
   source?: { content?: string };
 }
 
-/** Prefers Misskey's `source.content` (raw text) over stripping HTML out of the rendered `content`. */
-function extractReplyText(note: ApNoteObject): string {
-  if (typeof note.source?.content === "string" && note.source.content.trim().length > 0) {
-    return note.source.content.trim();
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Misskey's reply compose box auto-prepends "@<botuser>@<botdomain> " to whatever the
+ * user types — standard reply-mention UX for a human audience, but meaningless noise to
+ * the email recipient on the other end, who has no idea what a fediverse handle is.
+ * Strips it (only our own bot's handle specifically, not any mention — an actual
+ * mention of someone else the user typed on purpose is left alone).
+ */
+function stripLeadingSelfMention(text: string, botHandle: string): string {
+  const pattern = new RegExp(`^@${escapeRegExp(botHandle)}\\s*`, "i");
+  let result = text;
+  for (let i = 0; i < 3 && pattern.test(result); i++) {
+    result = result.replace(pattern, "");
   }
-  return stripHtml(note.content || "") || "(empty reply)";
+  return result.trimStart();
+}
+
+/** Prefers Misskey's `source.content` (raw text) over stripping HTML out of the rendered `content`. */
+function extractReplyText(note: ApNoteObject, botHandle: string): string {
+  const raw =
+    typeof note.source?.content === "string" && note.source.content.trim().length > 0
+      ? note.source.content.trim()
+      : stripHtml(note.content || "");
+  const cleaned = stripLeadingSelfMention(raw, botHandle);
+  return cleaned || "(empty reply)";
 }
 
 function buildReplySubject(originalSubject: string | null): string {
@@ -48,7 +72,8 @@ export async function onInboxReplyActivity(note: ApNoteObject, deps: DmReplyToEm
     return;
   }
 
-  const replyText = extractReplyText(note);
+  const botHandle = `${deps.config.bridgeUsername}@${deps.config.bridgeDomain}`;
+  const replyText = extractReplyText(note, botHandle);
   const references = [thread.emailReferences, thread.emailMessageId].filter(Boolean).join(" ");
 
   await deps.sendReplyEmail({

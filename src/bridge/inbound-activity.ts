@@ -95,7 +95,7 @@ export async function handleInboxActivity(activity: IncomingActivity, verifiedAc
     case "Create": {
       const note = activity.object;
       if (note?.type === "Note") {
-        await onInboxReplyActivity(note, { notesRepo: deps.notesRepo, sendReplyEmail: deps.sendReplyEmail });
+        await onInboxReplyActivity(note, { config: deps.config, notesRepo: deps.notesRepo, sendReplyEmail: deps.sendReplyEmail });
       }
       return { status: 202 };
     }

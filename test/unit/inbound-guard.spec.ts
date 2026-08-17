@@ -94,6 +94,38 @@ describe("handleInboxActivity — authorization guard", () => {
     expect(notesRepo.findNoteByNoteId("note://reply-1")).toBeDefined();
   });
 
+  it("strips Misskey's auto-prepended self-mention from the reply text, but not an unrelated mention", async () => {
+    notesRepo.insertNote({
+      noteId: "note://dm-2",
+      parentNoteId: null,
+      senderEmail: "bob@example.com",
+      subject: "Hi",
+      emailMessageId: "<msg-2@example.com>",
+      emailReferences: null,
+      direction: "inbound_dm",
+    });
+
+    const result = await handleInboxActivity(
+      {
+        type: "Create",
+        actor: ALLOWED_ACTOR_URI,
+        object: {
+          type: "Note",
+          id: "note://reply-2",
+          inReplyTo: "note://dm-2",
+          source: { content: "@jay@mail.example.com thanks, also cc @someoneelse@example.net please" },
+        },
+      },
+      ALLOWED_ACTOR_URI,
+      deps,
+    );
+
+    expect(result.status).toBe(202);
+    expect(sendReplyEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "thanks, also cc @someoneelse@example.net please" }),
+    );
+  });
+
   it("silently drops a Create{Note} reply that doesn't resolve to a known thread", async () => {
     const result = await handleInboxActivity(
       { type: "Create", actor: ALLOWED_ACTOR_URI, object: { type: "Note", id: "note://reply-1", inReplyTo: "note://unknown" } },
