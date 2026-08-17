@@ -270,3 +270,49 @@ server {
 
 어느 쪽이든 `.env`의 `INBOUND_SMTP_HOST`는 안 건드려도 됩니다 — compose 파일이
 알아서 `0.0.0.0`으로 덮어씁니다.
+
+## 7. 추가 도메인으로도 메일 받기 (선택)
+
+봇 정체성(`@<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`)은 그대로 두고, 같은 사서함을
+**다른 도메인 주소로도** 받고 싶을 때 (예: 서브도메인 없는 루트 도메인으로도) —
+AP 쪽은 그대로 `BRIDGE_DOMAIN`에만 있고, 메일 수신 주소만 늘어나는 것뿐이라
+가능합니다. 이미 그 추가 도메인에 다른 메일이 오가고 있지 않은지(MX 레코드 충돌)
+먼저 확인하세요.
+
+1. `.env`에 추가:
+   ```
+   BRIDGE_EXTRA_MAIL_DOMAINS=example.com
+   ```
+   (쉼표로 여러 개 가능: `BRIDGE_EXTRA_MAIL_DOMAINS=example.com,another.example`)
+
+2. 그 도메인용 DNS `MX` 레코드도 등록 (같은 서버 IP로):
+   ```
+   example.com.   MX   10   mail.example.com.
+   ```
+   (MX의 대상 호스트명 자체는 브릿지가 이미 갖고 있는 `mail.example.com`을
+   재사용해도 되고, 원한다면 별도 호스트명을 새로 만들어도 됩니다 — 어차피
+   도착지는 같은 서버의 같은 Postfix예요.)
+
+3. Postfix에도 그 도메인을 추가:
+   ```bash
+   sudo postconf -e 'relay_domains = mail.example.com, example.com'
+   ```
+   ```
+   # /etc/postfix/transport
+   mail.example.com   smtp:127.0.0.1:2525
+   example.com        smtp:127.0.0.1:2525
+   ```
+   ```bash
+   sudo postmap /etc/postfix/transport
+   sudo systemctl reload postfix
+   ```
+   그리고 "1. 위저드가 자동으로 심어두는 함정"에서처럼 이 새 도메인도
+   `mydestination`에 안 들어가 있는지 확인하세요.
+
+4. 재배포:
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d --build
+   ```
+
+이제 `<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`이든 `<BRIDGE_USERNAME>@example.com`이든,
+둘 다 같은 봇이 같은 DM을 보냅니다.

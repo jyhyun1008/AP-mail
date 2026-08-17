@@ -7,6 +7,8 @@ export interface Config {
   bridgeDomain: string;
   bridgeUsername: string;
   bridgeActorType: "Service" | "Person";
+  /** Extra domains, besides bridgeDomain, that <bridgeUsername>@<domain> should also be accepted at — same mailbox, same bot identity, just more addresses to reach it (e.g. the apex domain alongside a dedicated mail subdomain). */
+  bridgeExtraMailDomains: string[];
   /** Display name shown in Misskey clients. Purely cosmetic — falls back to a generic label if unset. */
   bridgeActorName: string | undefined;
   /** Avatar image URL for the bot actor — e.g. your real Misskey account's own avatar URL, so the bot doesn't show up as a faceless default icon. */
@@ -62,6 +64,15 @@ function optional(name: string, fallback: string): string {
   return value && value.trim() !== "" ? value : fallback;
 }
 
+function optionalList(name: string): string[] {
+  const value = process.env[name];
+  if (!value || value.trim() === "") return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function optionalInt(name: string, fallback: number): number {
   const value = process.env[name];
   if (!value || value.trim() === "") return fallback;
@@ -87,6 +98,7 @@ export function loadConfig(): Config {
     bridgeDomain: required("BRIDGE_DOMAIN"),
     bridgeUsername: required("BRIDGE_USERNAME"),
     bridgeActorType,
+    bridgeExtraMailDomains: optionalList("BRIDGE_EXTRA_MAIL_DOMAINS"),
     bridgeActorName: process.env.BRIDGE_ACTOR_NAME || undefined,
     bridgeActorIconUrl: process.env.BRIDGE_ACTOR_ICON_URL || undefined,
     allowedActorUri: required("ALLOWED_ACTOR_URI"),

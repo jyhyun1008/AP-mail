@@ -7,15 +7,23 @@ export type InboundMailHandler = (email: ParsedInboundEmail) => Promise<void>;
 
 /**
  * Starts the internal SMTP listener that Postfix's `transport_maps` hands bridge-domain
- * mail off to. Only accepts RCPT TO matching the single configured bridge mailbox
- * (defense in depth — Postfix's transport_maps should already scope this, but a
- * misconfiguration there shouldn't turn this into an open relay/catch-all).
+ * mail off to. Only accepts RCPT TO matching one of the configured bridge mailbox
+ * addresses — bridgeDomain plus any bridgeExtraMailDomains, all resolving to the same
+ * mailbox/bot identity, just reachable at more than one domain (e.g. a dedicated mail
+ * subdomain alongside the apex domain) — defense in depth: Postfix's transport_maps
+ * should already scope this, but a misconfiguration there shouldn't turn this into an
+ * open relay/catch-all.
  */
 export function startInboundSmtpServer(
-  config: Pick<Config, "inboundSmtpHost" | "inboundSmtpPort" | "inboundMaxMessageBytes" | "bridgeUsername" | "bridgeDomain">,
+  config: Pick<
+    Config,
+    "inboundSmtpHost" | "inboundSmtpPort" | "inboundMaxMessageBytes" | "bridgeUsername" | "bridgeDomain" | "bridgeExtraMailDomains"
+  >,
   onMail: InboundMailHandler,
 ): SMTPServer {
-  const allowedRecipient = `${config.bridgeUsername}@${config.bridgeDomain}`.toLowerCase();
+  const allowedRecipients = new Set(
+    [config.bridgeDomain, ...config.bridgeExtraMailDomains].map((domain) => `${config.bridgeUsername}@${domain}`.toLowerCase()),
+  );
 
   const server = new SMTPServer({
     banner: "apmail bridge",
@@ -24,7 +32,7 @@ export function startInboundSmtpServer(
     size: config.inboundMaxMessageBytes,
 
     onRcptTo(address, _session, callback) {
-      if (address.address.toLowerCase() !== allowedRecipient) {
+      if (!allowedRecipients.has(address.address.toLowerCase())) {
         const err = new Error("No such mailbox here") as Error & { responseCode?: number };
         err.responseCode = 550;
         callback(err);
@@ -54,7 +62,7 @@ export function startInboundSmtpServer(
 
   server.listen(config.inboundSmtpPort, config.inboundSmtpHost);
   logger.info(
-    { host: config.inboundSmtpHost, port: config.inboundSmtpPort, mailbox: allowedRecipient },
+    { host: config.inboundSmtpHost, port: config.inboundSmtpPort, mailboxes: [...allowedRecipients] },
     "inbound SMTP listener started",
   );
 

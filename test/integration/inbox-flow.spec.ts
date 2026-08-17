@@ -20,6 +20,7 @@ const config: Config = {
   bridgeDomain: "mail.example.com",
   bridgeUsername: "jay",
   bridgeActorType: "Service",
+  bridgeExtraMailDomains: [],
   bridgeActorName: undefined,
   bridgeActorIconUrl: undefined,
   allowedActorUri: "https://misskey.example.com/users/jay",
