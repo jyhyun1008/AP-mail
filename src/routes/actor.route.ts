@@ -11,6 +11,10 @@ export function registerActorRoute(app: FastifyInstance, config: Config, publicK
       return;
     }
 
+    // Never let any CDN/proxy (Cloudflare etc.) cache this — remote servers rely on it
+    // being current to verify our signatures, and a stale cached publicKeyPem after a
+    // key rotation is a real, previously-hit failure mode (silent signature mismatches).
+    reply.header("cache-control", "no-store");
     reply.header("content-type", ACTIVITY_JSON_CONTENT_TYPE);
     return buildActorDocument(config, publicKeyPem);
   });

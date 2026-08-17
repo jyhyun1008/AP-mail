@@ -13,6 +13,7 @@ export function registerWebfingerRoute(app: FastifyInstance, config: Config): vo
       return;
     }
 
+    reply.header("cache-control", "no-store");
     reply.header("content-type", JRD_CONTENT_TYPE);
     return buildWebfingerResponse(config);
   });

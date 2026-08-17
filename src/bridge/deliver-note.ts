@@ -1,4 +1,5 @@
 import { signRequest } from "../signatures/sign";
+import { logger } from "../util/logger";
 
 export interface DeliverNoteParams {
   activity: Record<string, unknown>;
@@ -25,6 +26,16 @@ export async function deliverNoteToInbox(params: DeliverNoteParams): Promise<voi
     url: params.inboxUrl,
     body,
   });
+
+  // Logged unconditionally (not just on failure): a remote inbox commonly returns 2xx
+  // just for *queuing* the activity, with signature verification happening later in an
+  // async job — so a successful response here is no guarantee the signature actually
+  // checked out on the other end. This is the only record we have of exactly what we
+  // signed/sent for a given delivery, to cross-reference against a remote-side failure.
+  logger.info(
+    { inboxUrl: params.inboxUrl, keyId: params.keyId, host: signed.Host, date: signed.Date, digest: signed.Digest },
+    "signed activity delivery",
+  );
 
   const response = await fetch(params.inboxUrl, {
     method: "POST",
