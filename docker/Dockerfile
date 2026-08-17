@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# --- builder: compile TypeScript -------------------------------------------------
+# --- builder: TypeScript 컴파일 -------------------------------------------------
 FROM node:22-slim AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -9,10 +9,11 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-# --- prod-deps: production-only node_modules, with native module toolchain -------
-# better-sqlite3 is a native addon. Its prebuilt-binary download can fail for a given
-# platform/arch/Node ABI combination, so we install a C++ toolchain here to guarantee a
-# working build regardless — this stage (and the toolchain) never reaches the final image.
+# --- prod-deps: 프로덕션 전용 node_modules + 네이티브 모듈 빌드 도구 -------
+# better-sqlite3는 네이티브 애드온입니다. 특정 플랫폼/아키텍처/Node ABI 조합에서는
+# 미리 빌드된 바이너리 다운로드가 실패할 수 있어서, C++ 툴체인을 여기서 설치해
+# 어떤 경우든 빌드가 되도록 보장합니다 — 이 스테이지(그리고 툴체인)는 최종
+# 이미지에는 절대 포함되지 않습니다.
 FROM node:22-slim AS prod-deps
 WORKDIR /app
 RUN apt-get update \
@@ -36,9 +37,9 @@ COPY --chown=apmail:apmail package.json ./
 
 USER apmail
 
-# Defaults match docker/docker-compose.snippet.yml's volume mounts. All other config
-# (BRIDGE_DOMAIN, ALLOWED_ACTOR_URI, mail relay settings, ...) has no safe default and
-# must come from the env_file — see .env.example.
+# 기본값은 docker/docker-compose.yml의 볼륨 마운트 경로와 맞춰져 있습니다. 이 외
+# 나머지 설정(BRIDGE_DOMAIN, ALLOWED_ACTOR_URI, 메일 릴레이 설정 등)은 안전한
+# 기본값이 없어서 env_file로 반드시 넘겨줘야 합니다 — .env.example 참고.
 ENV HTTP_HOST=0.0.0.0 \
     HTTP_PORT=8080 \
     ACTOR_PRIVATE_KEY_PATH=/data/keys/actor-private.pem \

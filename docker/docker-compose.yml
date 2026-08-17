@@ -1,15 +1,15 @@
-# Standalone deployable — apmail doesn't need to run on the same host, network, or
-# docker-compose stack as your Misskey instance. The two are only ever related over
-# plain HTTPS federation (WebFinger + signed Create{Note} activities), exactly like any
-# two ActivityPub servers, regardless of where either one lives.
+# 독립 실행형 배포 파일 — apmail은 Misskey 인스턴스랑 같은 서버, 같은 네트워크,
+# 같은 docker-compose 스택에 있을 필요가 전혀 없습니다. 둘은 그냥 일반적인 HTTPS
+# 페더레이션(WebFinger + 서명된 Create{Note} 액티비티)으로만 연결되고, 이건 서로
+# 다른 ActivityPub 서버 두 개가 통신하는 것과 완전히 똑같습니다, 어디에 있든 상관없이요.
 #
-# The one thing that *does* need to be reachable is Postfix — wherever you decide to run
-# it. This file defaults to the common case (Postfix on this same host, outside Docker);
-# see the `MAIL_RELAY_HOST`/`INBOUND_SMTP_HOST` notes below and in
-# ../docs/dns-and-mail-setup.md for the remote-Postfix alternative.
+# 실제로 닿아있어야 *하는* 유일한 존재는 Postfix인데, 어디에 둘지는 여러분이 정하면
+# 됩니다. 이 파일은 흔한 경우(Postfix가 이 서버에 있지만 Docker 밖에서 돌아가는 경우)를
+# 기본값으로 잡아뒀고, 원격 Postfix를 쓰는 경우는 아래 `MAIL_RELAY_HOST`/
+# `INBOUND_SMTP_HOST` 관련 주석이랑 ../docs/dns-and-mail-setup.md를 참고하세요.
 #
-# Run with: `docker compose -f docker/docker-compose.yml --env-file .env up -d --build`
-# (from the repo root, so the build `context: ..` below resolves correctly).
+# 실행: `docker compose -f docker/docker-compose.yml --env-file .env up -d --build`
+# (저장소 루트에서 실행해야 아래 build의 `context: ..`가 제대로 풀립니다.)
 
 services:
   apmail:
@@ -21,29 +21,30 @@ services:
     env_file:
       - ../.env
     environment:
-      # Must bind all interfaces inside the container so Docker's port publishing
-      # (arriving via eth0, not the container's own loopback) can reach it — overrides
-      # whatever INBOUND_SMTP_HOST is set to in .env, which stays "127.0.0.1" there for
-      # the bare-metal/network_mode:host case. This override only matters for this
-      # bridge-network deployment.
+      # 컨테이너 안에서 모든 인터페이스에 바인딩해야 Docker의 포트 공개 기능이
+      # (컨테이너 자체 루프백이 아니라 eth0을 통해 들어오니까) 닿을 수 있습니다 —
+      # .env에 있는 INBOUND_SMTP_HOST 값을 여기서 덮어씁니다. .env 쪽은
+      # bare-metal/network_mode:host 경우를 위해 "127.0.0.1"로 남겨둠. 이 덮어쓰기는
+      # 지금처럼 일반 브리지 네트워크로 배포할 때만 의미가 있습니다.
       INBOUND_SMTP_HOST: "0.0.0.0"
     ports:
-      # HTTP (WebFinger/actor/inbox/media) — wherever your reverse proxy lives.
-      # Same host as this container: 127.0.0.1 binding below is enough.
-      # Proxy on a different host: drop the "127.0.0.1:" prefix (bind 0.0.0.0 instead)
-      # and put a firewall in front rather than exposing it to the whole internet.
+      # HTTP (WebFinger/액터/inbox/media) — 리버스 프록시가 어디 있든 닿아야 함.
+      # 이 컨테이너랑 같은 서버에 있다면: 아래 127.0.0.1 바인딩으로 충분함.
+      # 다른 서버에 프록시가 있다면: "127.0.0.1:" 접두어를 빼고(0.0.0.0으로 바인딩)
+      # 인터넷 전체에 노출하는 대신 방화벽을 앞에 두세요.
       - "127.0.0.1:${HTTP_PORT:-8080}:8080"
-      # Inbound SMTP — wherever Postfix ends up, it needs to reach this port.
-      #   - Postfix on this same host, outside Docker: 127.0.0.1 binding below is enough.
-      #   - Remote Postfix: drop the "127.0.0.1:" prefix and firewall it to just that
-      #     Postfix server's IP (see docs/dns-and-mail-setup.md).
+      # 인바운드 SMTP — Postfix가 어디에 있든 이 포트에 닿아야 함.
+      #   - Postfix가 이 서버에 있고 Docker 밖에서 돌 때: 아래 127.0.0.1 바인딩으로 충분함.
+      #   - 원격 Postfix: "127.0.0.1:" 접두어를 빼고 그 Postfix 서버 IP로만
+      #     방화벽을 제한하세요 (docs/dns-and-mail-setup.md 참고).
       - "127.0.0.1:${INBOUND_SMTP_PORT:-2525}:2525"
     extra_hosts:
-      # Lets MAIL_RELAY_HOST=host.docker.internal reach Postfix if it ends up running
-      # directly on this same host, outside Docker. Docker Desktop resolves
-      # host.docker.internal automatically; plain Docker Engine on Linux needs this line
-      # to do the same. Harmless/unused if Postfix ends up remote instead (point
-      # MAIL_RELAY_HOST at its real hostname/IP in that case).
+      # Postfix가 이 서버에서 Docker 밖으로 직접 돌아갈 경우,
+      # MAIL_RELAY_HOST=host.docker.internal이 그걸 찾아갈 수 있게 해줍니다. Docker
+      # Desktop은 host.docker.internal을 자동으로 풀어주지만, Linux의 일반 Docker
+      # Engine은 이 줄이 있어야 똑같이 동작합니다. Postfix가 원격에 있다면 이 줄은
+      # 안 쓰이니 무해합니다 (그 경우엔 MAIL_RELAY_HOST를 그 서버의 실제
+      # 호스트명/IP로 지정하세요).
       - "host.docker.internal:host-gateway"
     volumes:
       - apmail-keys:/data/keys

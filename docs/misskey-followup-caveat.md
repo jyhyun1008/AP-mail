@@ -1,41 +1,39 @@
-# Misskey follow / remote-DM-acceptance caveat
+# Misskey 팔로우 / 원격 DM 수락 관련 주의사항
 
-This is the one piece of the deployment that can't be guaranteed correct from the
-bridge's code alone — it depends entirely on your Misskey instance's own federation
-policy, and has to be verified empirically after deploying.
+이건 배포에서 코드만으로는 절대 보장할 수 없는 유일한 부분입니다 — 전적으로 여러분의
+Misskey 인스턴스의 페더레이션 정책에 달려있고, 배포하고 나서 실제로 눈으로 확인해야
+합니다.
 
-## The concern
+## 뭐가 문제냐면
 
-The bridge's bot actor (`@<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`) sends you a direct
-`Create{Note}` the first time an email comes in, **without you ever having followed it
-first**. Some ActivityPub servers (Misskey included, depending on version/settings)
-treat notes from a remote actor nobody locally follows with more suspicion — anywhere
-from "delivered fine" to "silently dropped" to "held for review" — as an anti-spam
-measure.
+브릿지의 봇 액터(`@<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`)는 메일이 처음 들어왔을 때,
+**여러분이 먼저 팔로우한 적도 없는 상태로** 다이렉트 `Create{Note}`를 바로 보냅니다.
+일부 ActivityPub 서버(Misskey도 버전/설정에 따라 포함)는 아무도 팔로우하지 않은
+원격 액터가 보낸 노트를 스팸 방지 차원에서 좀 더 의심스럽게 다룹니다 — "그냥 정상
+전달"부터 "조용히 버려짐", "검토 대기로 보류"까지 다양할 수 있어요.
 
-## What to check, post-deploy
+## 배포 후 확인할 것
 
-1. **Search for and follow the bot manually** from your Misskey account:
-   search `@<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>` in Misskey's UI, confirm it resolves as a
-   remote user (this alone validates WebFinger + the actor document are correctly
-   served), and follow it. The bridge auto-accepts `Follow` activities
-   (`src/bridge/inbound-activity.ts`), so this should complete immediately.
-2. Check your Misskey instance's settings for anything like "reject notes from remote
-   users you don't follow" — this can be an instance-wide moderation setting (admin
-   panel) as well as a per-account preference, depending on Misskey version.
-3. Run the smoke test (`npm run smoke:send-note`, or send a real email to
-   `<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`) and confirm the DM actually shows up in your
-   Misskey notifications/DMs — this is the real test; steps 1–2 are just where to look
-   if it doesn't.
+1. Misskey 계정에서 **봇을 직접 검색해서 팔로우**해보세요: Misskey UI에서
+   `@<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`을 검색해서 원격 사용자로 잘 뜨는지 확인하고
+   (이것만으로도 WebFinger + 액터 문서가 제대로 서빙되고 있다는 게 검증됨), 팔로우하세요.
+   브릿지는 `Follow` 액티비티를 자동으로 수락합니다
+   (`src/bridge/inbound-activity.ts`), 그러니 바로 완료될 거예요.
+2. Misskey 인스턴스 설정에서 "팔로우하지 않은 원격 사용자의 노트 거부" 같은 게 있는지
+   확인하세요 — Misskey 버전에 따라 인스턴스 전체 설정(관리자 패널)일 수도 있고
+   계정별 설정일 수도 있습니다.
+3. 스모크 테스트를 돌려보세요 (`npm run smoke:send-note`, 또는 실제로
+   `<BRIDGE_USERNAME>@<BRIDGE_DOMAIN>`으로 메일을 보내보기) 그리고 그 DM이 실제로
+   Misskey 알림/DM에 뜨는지 확인하세요 — 이게 진짜 테스트고, 1~2번은 안 될 때
+   어디를 봐야 하는지에 대한 참고사항일 뿐입니다.
 
-## If DMs aren't arriving after following
+## 팔로우했는데도 DM이 안 올 때
 
-- Check the bridge's logs for the delivery attempt (`deliverNoteToInbox` logs on
-  failure) — a non-2xx from your Misskey instance's inbox means Misskey itself rejected
-  it, and the response body usually says why.
-- Confirm `ALLOWED_ACTOR_URI` in `.env` is exactly your account's AP actor URI (not your
-  profile page URL) — Misskey's own "copy remote URL" style option on your profile, or
-  resolving `acct:you@misskey.example.com` through WebFinger by hand, gives the right
-  value.
-- If your instance has a moderation queue for remote content, the note may be sitting
-  there rather than being dropped outright.
+- 브릿지 로그에서 전송 시도 기록을 확인하세요 (`deliverNoteToInbox`가 실패하면 로그를
+  남김) — Misskey 인스턴스의 inbox에서 2xx가 아닌 응답이 왔다면 Misskey 쪽에서 직접
+  거부한 거고, 대개 응답 본문에 이유가 적혀있습니다.
+- `.env`의 `ALLOWED_ACTOR_URI`가 정확히 내 계정의 AP 액터 URI인지 확인하세요 (프로필
+  페이지 URL이 아니라요) — Misskey의 "원격 URL 복사" 같은 기능이나, `acct:you@
+  misskey.example.com`을 WebFinger로 직접 조회해보면 정확한 값을 알 수 있습니다.
+- 인스턴스에 원격 콘텐츠용 모더레이션 대기열이 있다면, 노트가 버려진 게 아니라
+  거기 쌓여 있을 수도 있습니다.
