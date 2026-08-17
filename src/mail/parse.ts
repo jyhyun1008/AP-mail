@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { simpleParser } from "mailparser";
+import { stripHtml } from "../util/strip-html";
 
 export interface ParsedAttachment {
   filename: string;
@@ -22,15 +23,6 @@ export interface ParsedInboundEmail {
   references?: string;
   /** Whether relayed as an AP attachment or just named in the DM text is decided downstream (see bridge/attachment-relay.ts), based on total size. */
   attachments: ParsedAttachment[];
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 /** Parses a raw RFC 822 message into the fields the bridge actually needs. */

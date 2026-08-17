@@ -19,7 +19,8 @@ export interface ActorCache {
   resolveInboxUrl(actorUri: string): Promise<string>;
 }
 
-function actorUriFromKeyId(keyId: string): string {
+/** `${actorId}#main-key` -> `${actorId}` — also used by inbound-activity.ts to check the verified signer against ALLOWED_ACTOR_URI. */
+export function actorUriFromKeyId(keyId: string): string {
   return keyId.split("#")[0];
 }
 

@@ -3,6 +3,7 @@ import { generateOrLoadActorKeypair } from "./actor/keys";
 import { onInboundEmail } from "./bridge/email-to-dm";
 import { actorId, loadConfig } from "./config";
 import { startInboundSmtpServer } from "./mail/smtp-listener";
+import { createMailTransport, sendReplyEmail, type ReplyEmailParams } from "./mail/send";
 import { purgeExpiredAttachments } from "./media/attachment-store";
 import { buildServer } from "./server";
 import { createActorCache } from "./signatures/actor-cache";
@@ -30,7 +31,18 @@ async function main(): Promise<void> {
   const { privateKeyPem, publicKeyPem } = generateOrLoadActorKeypair(config);
   const keyId = `${actorId(config)}#main-key`;
 
-  const app = buildServer(config, { publicKeyPem });
+  const mailTransport = createMailTransport(config);
+  const sendReplyEmailBound = (params: ReplyEmailParams) => sendReplyEmail(mailTransport, config, params);
+
+  const app = buildServer(config, {
+    publicKeyPem,
+    config,
+    actorCache,
+    notesRepo,
+    privateKeyPem,
+    keyId,
+    sendReplyEmail: sendReplyEmailBound,
+  });
   await app.listen({ port: config.httpPort, host: config.httpHost });
   logger.info(
     { port: config.httpPort, host: config.httpHost, actor: `${config.bridgeUsername}@${config.bridgeDomain}` },
@@ -50,6 +62,7 @@ async function main(): Promise<void> {
     clearInterval(purgeTimer);
     await app.close();
     await new Promise<void>((resolve) => smtpServer.close(() => resolve()));
+    mailTransport.close();
     db.close();
     process.exit(0);
   };
