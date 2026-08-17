@@ -47,6 +47,20 @@ apt install postfix opendkim opendkim-tools    # Debian/Ubuntu 기준
 메일 이름은 `mail.example.com`으로 넣으세요. 나중에 아래에서 다시 손보니 대충
 넘어가도 됩니다.
 
+**⚠️ 위저드가 자동으로 심어두는 함정**: 이 위저드가 방금 입력한 메일 이름을
+`main.cf`의 `mydestination`에 자동으로 넣어둡니다. `mydestination`에 들어있으면
+Postfix는 그 도메인을 "내가 진짜 로컬로 책임지는 도메인"으로 취급해서, 실제
+리눅스 시스템 계정과 대조하는 로컬 수신자 검증을 하는데 — 우리 도메인엔 그런
+유닉스 계정이 있을 리 없으니 전부 `550 5.1.1 User unknown in local recipient
+table`로 거부됩니다. **아래 "받기" 설정을 끝낸 뒤 `mydestination`에서 그
+도메인을 반드시 빼주세요** (실제로 겪은 문제입니다):
+
+```bash
+postconf mydestination   # 지금 값 확인, 브릿지 도메인이 껴있으면
+postconf -e 'mydestination = $myhostname, localhost.$mydomain, localhost'  # 브릿지 도메인 뺀 값으로 교체
+```
+(다른 값이 이미 있다면 그건 유지하고 브릿지 도메인만 빼세요.)
+
 ### 설정 파일이 두 개인 이유
 
 - `/etc/postfix/main.cf` — 전역 설정 (도메인, 보안, 어떤 메일을 받을지 등)
@@ -56,15 +70,14 @@ apt install postfix opendkim opendkim-tools    # Debian/Ubuntu 기준
 
 ### "받기": transport_maps가 하는 일
 
-Postfix는 원래 자기가 책임지는 도메인(`mydestination`이나 `virtual_mailbox_domains`에
-등록된 도메인)으로 온 메일을 **로컬 유닉스 계정 메일함에 저장**하려고 합니다. 근데
-우리는 그걸 원하는 게 아니라 "이 도메인으로 온 메일은 저장하지 말고 우리 브릿지
-프로세스한테 SMTP로 던져줘"를 원하죠. 그래서 `transport_maps`로 이 도메인만
-예외 처리를 합니다:
+Postfix는 원래 자기가 책임지는 도메인(`mydestination`에 등록된 도메인)으로 온
+메일을 **로컬 유닉스 계정 메일함에 저장**하려고 합니다. 근데 우리는 그걸 원하는 게
+아니라 "이 도메인으로 온 메일은 저장하지 말고 우리 브릿지 프로세스한테 SMTP로
+던져줘"를 원하죠. 그래서 `relay_domains` + `transport_maps` 조합을 씁니다:
 
 ```
 # /etc/postfix/main.cf
-virtual_mailbox_domains = mail.example.com
+relay_domains = mail.example.com
 transport_maps = hash:/etc/postfix/transport
 ```
 
@@ -75,6 +88,14 @@ mail.example.com   smtp:<브릿지-호스트>:<INBOUND_SMTP_PORT>
 
 `transport` 파일의 문법은 "도메인 → 어떻게 배달할지"이고, `smtp:host:port`는
 "그냥 평범한 SMTP로 저 주소한테 넘겨라"라는 뜻입니다 (로컬 배달이 아니라).
+
+**`virtual_mailbox_domains`를 쓰지 않는 이유**: 그건 "Postfix 자신이 그 도메인의
+유효한 주소 목록을 관리한다"는 뜻이라, 어떤 주소가 유효한지 알려주는
+`virtual_mailbox_maps` 같은 게 따로 없으면 전부 거부됩니다. 우리는 그런 목록이
+필요 없어요 — 어떤 수신 주소가 유효한지는 **브릿지 자신**이 이미 검사합니다
+(`BRIDGE_USERNAME@BRIDGE_DOMAIN`이 아니면 브릿지가 알아서 550으로 거부).
+Postfix는 그 판단 없이 그냥 다 받아서 넘겨주기만 하면 되고, 그 용도엔
+`relay_domains`가 맞습니다.
 
 Postfix는 이 텍스트 파일을 그때그때 읽지 않고 성능을 위해 컴파일된 DB 형태로
 읽습니다. 그래서 파일을 고칠 때마다 아래 명령으로 다시 컴파일해줘야 반영됩니다:
@@ -92,7 +113,10 @@ systemctl reload postfix          # 연결 안 끊고 설정만 다시 읽음
   방화벽 제한하세요.
 
 `mail.example.com`이 다른 `virtual_alias_maps`/캐치올(catch-all) 설정에 이미
-걸려서 이 transport 규칙보다 먼저 가로채이는 건 아닌지 한 번 확인하세요.
+걸려서 이 transport 규칙보다 먼저 가로채이는 건 아닌지 한 번 확인하세요. 그리고
+바로 위 "위저드가 자동으로 심어두는 함정"에서 얘기한 대로, `mydestination`에도
+이 도메인이 안 남아있는지 다시 한번 확인하세요 — 셋 중 하나라도 안 맞으면
+`550 5.1.1 User unknown in local recipient table` 같은 거부가 납니다.
 
 ### DKIM: 밀터(milter)라는 플러그인 개념
 
@@ -166,11 +190,22 @@ mailq                    # 큐에 걸려서 안 나간 메일 확인
   # hello
   # .
   ```
-  `RCPT TO` 단계에서 거부되면 `transport`/`virtual_mailbox_domains` 설정을,
+  `RCPT TO` 단계에서 거부되면 `transport`/`relay_domains`/`mydestination` 설정을,
   `DATA` 이후 응답이 이상하면 브릿지 쪽(`INBOUND_SMTP_PORT`가 실제로 열려있는지)을
   의심하세요.
+- `550 5.1.1 ... User unknown in local recipient table`: 그 도메인이 아직
+  `mydestination`에 남아있다는 뜻입니다 (`postconf mydestination`으로 확인). 위
+  "위저드가 자동으로 심어두는 함정" 참고.
 - 나가는 메일이 큐에 계속 쌓임(`mailq`에 남아있음): 십중팔구 상대 서버 연결
   실패(포트 25 아웃바운드 차단 등) — 로그에 이유가 찍힙니다.
+- Misskey에 DM이 아예 안 뜨거나 서명 검증이 계속 실패함: 배포 도중(nginx/Docker
+  설정이 아직 안 끝난 상태) Misskey가 먼저 그 액터에 접촉했다면, 실패한/잘못된
+  상태를 캐시해버려서 이후 설정을 다 고쳐도 계속 실패할 수 있습니다 — 실제로
+  겪은 문제입니다. [misskey-followup-caveat.md](./misskey-followup-caveat.md)의
+  재동기화 방법을 시도하거나, 확실한 건 배포가 완전히 끝난 뒤 처음 보는
+  `BRIDGE_USERNAME`으로 Misskey와 첫 접촉하는 것입니다 (즉 nginx/Docker/DNS를 다
+  끝내고 `curl`로 액터 엔드포인트가 정상 응답하는 것까지 확인한 다음에만
+  `npm run smoke:send-note`나 실제 메일 테스트를 하세요).
 
 ## 4. 리버스 프록시
 
