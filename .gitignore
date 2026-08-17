@@ -1,0 +1,13 @@
+node_modules/
+dist/
+
+# runtime state — never commit secrets or local data
+.env
+data/
+keys/
+*.sqlite
+*.sqlite-journal
+*.pem
+
+*.log
+.DS_Store
