@@ -64,7 +64,7 @@ async function main(): Promise<void> {
 
   const smtpServer = startInboundSmtpServer(config, async (email) => {
     try {
-      await onInboundEmail(email, { config, actorCache, notesRepo, privateKeyPem, keyId });
+      await onInboundEmail(email, { config, actorCache, notesRepo, privateKeyPem, publicKeyPem, keyId });
     } catch (err) {
       logger.error({ err, from: email.from, subject: email.subject }, "failed to bridge inbound email to DM");
     }

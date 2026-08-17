@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   const db = openDatabase(config.dbPath);
   const actorCache = createActorCache(db, config.actorCacheTtlHours);
   const notesRepo = createNotesRepo(db);
-  const { privateKeyPem } = generateOrLoadActorKeypair(config);
+  const { privateKeyPem, publicKeyPem } = generateOrLoadActorKeypair(config);
   const keyId = `${actorId(config)}#main-key`;
 
   const testEmail = {
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   console.log(`Sending test DM to ${config.allowedActorUri} ...`);
 
   try {
-    await onInboundEmail(testEmail, { config, actorCache, notesRepo, privateKeyPem, keyId });
+    await onInboundEmail(testEmail, { config, actorCache, notesRepo, privateKeyPem, publicKeyPem, keyId });
     console.log("✅ Delivered without error. Check your Misskey DMs to confirm it actually arrived");
     console.log("   (a 2xx from the inbox doesn't guarantee Misskey didn't silently drop it —");
     console.log("   see docs/misskey-followup-caveat.md if nothing shows up).");
@@ -50,4 +50,9 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+main().then(() => {
+  // A successful delivery leaves an open keep-alive HTTP connection (undici's connection
+  // pool for the fetch() to the remote inbox), which otherwise keeps the event loop alive
+  // and this script running forever instead of returning control to the shell.
+  process.exit(process.exitCode ?? 0);
+});

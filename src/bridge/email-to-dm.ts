@@ -15,6 +15,7 @@ export interface EmailToDmDeps {
   actorCache: ActorCache;
   notesRepo: NotesRepo;
   privateKeyPem: string;
+  publicKeyPem: string;
   /** `${actorId}#main-key` */
   keyId: string;
 }
@@ -89,6 +90,7 @@ export async function onInboundEmail(email: ParsedInboundEmail, deps: EmailToDmD
     activity,
     inboxUrl,
     privateKeyPem: deps.privateKeyPem,
+    publicKeyPem: deps.publicKeyPem,
     keyId: deps.keyId,
   });
 

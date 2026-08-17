@@ -31,6 +31,7 @@ beforeEach(() => {
     },
     notesRepo,
     privateKeyPem: "unused",
+    publicKeyPem: "unused",
     keyId: "https://mail.example.com/users/jay#main-key",
     sendReplyEmail,
   };
@@ -109,13 +110,15 @@ describe("handleInboxActivity — authorization guard", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     // Follow handling actually signs an Accept activity for real (unlike the other cases
-    // here), so it needs a real PEM keypair rather than the "unused" placeholder.
-    const { privateKey } = generateKeyPairSync("rsa", {
+    // here), so it needs a real, matching PEM keypair rather than the "unused" placeholder
+    // (deliverNoteToInbox self-verifies its own signature before sending).
+    const { privateKey, publicKey } = generateKeyPairSync("rsa", {
       modulusLength: 2048,
       publicKeyEncoding: { type: "spki", format: "pem" },
       privateKeyEncoding: { type: "pkcs8", format: "pem" },
     });
     deps.privateKeyPem = privateKey;
+    deps.publicKeyPem = publicKey;
 
     const result = await handleInboxActivity({ type: "Follow", actor: ALLOWED_ACTOR_URI, id: "follow://1" }, ALLOWED_ACTOR_URI, deps);
 

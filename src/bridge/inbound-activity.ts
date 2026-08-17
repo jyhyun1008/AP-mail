@@ -13,6 +13,7 @@ export interface InboundActivityDeps {
   actorCache: ActorCache;
   notesRepo: NotesRepo;
   privateKeyPem: string;
+  publicKeyPem: string;
   /** `${actorId}#main-key` */
   keyId: string;
   sendReplyEmail: (params: ReplyEmailParams) => Promise<void>;
@@ -78,6 +79,7 @@ export async function handleInboxActivity(activity: IncomingActivity, verifiedAc
           activity: buildAcceptActivity(deps.config, activity),
           inboxUrl,
           privateKeyPem: deps.privateKeyPem,
+          publicKeyPem: deps.publicKeyPem,
           keyId: deps.keyId,
         });
       } catch (err) {
