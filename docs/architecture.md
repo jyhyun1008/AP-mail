@@ -13,7 +13,9 @@ apmail은 이메일과 Misskey 계정을 이어주는 개인용 브릿지고, �
 - 자기만의 서브도메인(`BRIDGE_DOMAIN`, 예: `mail.example.com`)에서 돌아가는데, 이건
   Misskey 인스턴스 자체 도메인의 WebFinger/액터 경로랑 절대 안 겹치게 하려는 목적이
   큽니다.
-- RSA-4096 키쌍은 최초 부팅 시 한 번만 생성돼서 디스크에 저장됩니다
+- RSA-2048 키쌍은 최초 부팅 시 한 번만 생성돼서 디스크에 저장됩니다 (Mastodon 기본
+  액터 키 크기랑 동일; 4096은 엔트로피 부족한 환경(홈서버/최소 VM 등)에서 키 생성 자체가
+  무한정 멈출 수 있어서 일부러 안 씀)
   (`ACTOR_PRIVATE_KEY_PATH`/`ACTOR_PUBLIC_KEY_PATH`) — `src/actor/keys.ts` 참고.
 
 ## 인바운드 흐름: 메일 → DM

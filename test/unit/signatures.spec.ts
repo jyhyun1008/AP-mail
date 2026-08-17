@@ -5,7 +5,7 @@ import { SignatureVerificationError } from "../../src/util/errors";
 import { verifySignature } from "../../src/signatures/verify";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
-  modulusLength: 2048, // small for fast tests; production uses 4096 (see actor/keys.ts)
+  modulusLength: 2048, // matches production size now too (see actor/keys.ts)
   publicKeyEncoding: { type: "spki", format: "pem" },
   privateKeyEncoding: { type: "pkcs8", format: "pem" },
 });

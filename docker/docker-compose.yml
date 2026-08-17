@@ -27,6 +27,17 @@ services:
       # bare-metal/network_mode:host 경우를 위해 "127.0.0.1"로 남겨둠. 이 덮어쓰기는
       # 지금처럼 일반 브리지 네트워크로 배포할 때만 의미가 있습니다.
       INBOUND_SMTP_HOST: "0.0.0.0"
+      # .env.example의 기본값(ACTOR_PRIVATE_KEY_PATH 등)은 bare-metal용 상대경로
+      # (./data/keys/...)입니다. 이게 그대로 env_file을 통해 들어오면 컨테이너 안에서
+      # WORKDIR(/app) 기준으로 풀려서 /app/data/keys/...가 되어버리는데, 이건 아래
+      # volumes:에서 실제로 마운트해둔 /data/keys와 전혀 다른 곳이라 컨테이너를
+      # 재생성할 때마다(재빌드 등) 액터 키가 통째로 새로 생성되는 사고가 납니다
+      # (서명 검증이 계속 실패하는 원인이 됨 — 실제로 겪은 문제). .env에 뭐라고
+      # 적혀있든 상관없이 여기서 항상 볼륨 마운트 경로로 강제 고정합니다.
+      ACTOR_PRIVATE_KEY_PATH: /data/keys/actor-private.pem
+      ACTOR_PUBLIC_KEY_PATH: /data/keys/actor-public.pem
+      DB_PATH: /data/db/apmail.sqlite
+      ATTACHMENTS_DIR: /data/attachments
     ports:
       # HTTP (WebFinger/액터/inbox/media) — 리버스 프록시가 어디 있든 닿아야 함.
       # 이 컨테이너랑 같은 서버에 있다면: 아래 127.0.0.1 바인딩으로 충분함.
