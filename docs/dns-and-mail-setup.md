@@ -158,10 +158,28 @@ MAIL_RELAY_HOST=...
 MAIL_RELAY_PORT=587
 ```
 
-- **같은 서버**: `main.cf`의 `mynetworks`에 `127.0.0.1/32`가 들어있는지 확인하세요
-  (`postconf mynetworks`로 현재 값 확인 가능) — 있으면 Postfix가 로컬에서 오는
-  건 인증 없이 릴레이해줍니다. Docker로 배포한다면 `127.0.0.1` 대신
-  `MAIL_RELAY_HOST=host.docker.internal`을 쓰세요.
+- **같은 서버, bare metal**: `main.cf`의 `mynetworks`에 `127.0.0.1/32`가
+  들어있는지 확인하세요 (`postconf mynetworks`) — 있으면 Postfix가 로컬에서 오는
+  건 인증 없이 릴레이해줍니다.
+- **같은 서버, Docker**: `MAIL_RELAY_HOST=host.docker.internal`을 쓰세요 (컨테이너
+  안 `127.0.0.1`은 호스트가 아니라 자기 자신이라 아무것도 안 듣고 있음). 이러면
+  두 가지를 더 해줘야 합니다 — 실제로 둘 다 안 하면 조용히 막히거나
+  타임아웃납니다:
+  1. Postfix `mynetworks`에 Docker 브리지 서브넷 추가 (연결 IP가 `127.0.0.1`이
+     아니라 Docker 브리지 게이트웨이 IP로 보이기 때문 —
+     `docker inspect <컨테이너명> --format '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}'`로
+     확인):
+     ```bash
+     sudo postconf -e 'mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128 172.18.0.0/16'
+     ```
+  2. **방화벽(ufw 등)에서 587 포트를 그 Docker 서브넷에 대해 열기** — `127.0.0.1`
+     루프백 트래픽은 보통 방화벽을 안 거치지만, `host.docker.internal`을 거치는
+     트래픽은 실제로 방화벽 필터링을 통과합니다. 안 열려있으면 거부 응답조차
+     없이 그냥 패킷이 버려져서, 연결 시도가 응답 없이 무한정 멈춰버립니다
+     (에러도 안 나고 그냥 멈춤 — 실제로 겪은 문제):
+     ```bash
+     sudo ufw allow from 172.18.0.0/16 to any port 587
+     ```
 - **다른 서버**: "로컬이니까 믿어준다"는 네트워크 너머로는 안 통합니다.
   `.env`에 `MAIL_RELAY_USER`/`MAIL_RELAY_PASS`를 채우고, Postfix의 587
   (submission) 포트가 SMTP AUTH를 요구하도록 설정하세요 (`smtpd_sasl_auth_enable

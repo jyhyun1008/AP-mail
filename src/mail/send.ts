@@ -20,6 +20,14 @@ export function createMailTransport(
     port: config.mailRelayPort,
     secure: false, // local submission — see docs/dns-and-mail-setup.md for the trusted-network vs SMTP AUTH tradeoff
     auth: config.mailRelayUser ? { user: config.mailRelayUser, pass: config.mailRelayPass } : undefined,
+    // Without these, a firewall silently dropping (rather than refusing) the connection
+    // to the relay leaves the TCP handshake hanging for the OS's default timeout — which
+    // can be minutes — and the /inbox request processing it just hangs right along with
+    // it (hit in practice: a docker-networked relay target that wasn't in the host
+    // firewall's allowlist). Fail loudly and fast instead.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 10_000,
   });
 }
 
