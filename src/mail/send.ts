@@ -28,6 +28,13 @@ export function createMailTransport(
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 10_000,
+    // This relay is reached over an internal path only (loopback, or a Docker bridge
+    // network gated by mynetworks/firewall rules — see docs/dns-and-mail-setup.md) and
+    // Postfix's submission listener commonly presents a self-signed cert with nothing
+    // else exposing it to the outside. Rejecting untrusted certs here has no real
+    // security benefit for a same-host relay we already trust by network topology, and
+    // breaks STARTTLS against Postfix's default self-signed cert out of the box.
+    tls: { rejectUnauthorized: false },
   });
 }
 
