@@ -19,6 +19,18 @@ export interface Config {
 
   inboundSmtpHost: string;
   inboundSmtpPort: number;
+  /** Hard cap on inbound message size (bytes); smtp-server rejects anything larger during DATA. Defense in depth on top of whatever Postfix already enforces upstream. */
+  inboundMaxMessageBytes: number;
+
+  /** Max characters of email body text embedded in a single DM Note, to stay under the recipient Misskey instance's note-length limit. Raise if your instance allows longer notes. */
+  dmMaxBodyChars: number;
+
+  /** Directory attachment binaries are written to (one subfolder per attachment, opaque UUID name). */
+  attachmentsDir: string;
+  /** Per-email cap on total attachment bytes; over this, attachments are not saved/relayed — only named in the DM text. */
+  attachmentsMaxTotalBytes: number;
+  /** Attachment files older than this are deleted by the periodic purge job. Does not affect the `notes` table, which is kept indefinitely by design. */
+  attachmentsRetentionDays: number;
 
   mailRelayHost: string;
   mailRelayPort: number;
@@ -83,6 +95,13 @@ export function loadConfig(): Config {
 
     inboundSmtpHost: optional("INBOUND_SMTP_HOST", "127.0.0.1"),
     inboundSmtpPort: optionalInt("INBOUND_SMTP_PORT", 2525),
+    inboundMaxMessageBytes: optionalInt("INBOUND_MAX_MESSAGE_BYTES", 10 * 1024 * 1024),
+
+    dmMaxBodyChars: optionalInt("DM_MAX_BODY_CHARS", 2000),
+
+    attachmentsDir: path.resolve(optional("ATTACHMENTS_DIR", "./data/attachments")),
+    attachmentsMaxTotalBytes: optionalInt("ATTACHMENTS_MAX_TOTAL_BYTES", 8 * 1024 * 1024),
+    attachmentsRetentionDays: optionalInt("ATTACHMENTS_RETENTION_DAYS", 30),
 
     mailRelayHost: optional("MAIL_RELAY_HOST", "127.0.0.1"),
     mailRelayPort: optionalInt("MAIL_RELAY_PORT", 587),
@@ -109,4 +128,8 @@ export function actorId(config: Pick<Config, "bridgeDomain" | "bridgeUsername">)
 
 export function actorInboxUrl(config: Pick<Config, "bridgeDomain" | "bridgeUsername">): string {
   return `${actorId(config)}/inbox`;
+}
+
+export function mediaBaseUrl(config: Pick<Config, "bridgeDomain">): string {
+  return `https://${config.bridgeDomain}/media`;
 }

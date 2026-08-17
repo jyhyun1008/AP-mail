@@ -1,0 +1,19 @@
+From: "Bob Example" <bob@example.org>
+To: jay@mail.example.com
+Subject: Multipart hello
+Message-ID: <multi456@example.org>
+Date: Mon, 17 Aug 2026 10:05:00 +0900
+Content-Type: multipart/alternative; boundary="BOUNDARY123"
+
+--BOUNDARY123
+Content-Type: text/plain; charset=utf-8
+
+Plain part body.
+Second line.
+
+--BOUNDARY123
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>HTML part body.</p></body></html>
+
+--BOUNDARY123--

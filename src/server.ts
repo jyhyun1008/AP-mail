@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { Config } from "./config";
 import { registerActorRoute } from "./routes/actor.route";
 import { registerHealthRoute } from "./routes/health.route";
+import { registerMediaRoute } from "./routes/media.route";
 import { registerWebfingerRoute } from "./routes/webfinger.route";
 
 const AP_CONTENT_TYPES = ["application/activity+json", "application/ld+json"];
@@ -27,6 +28,7 @@ export function buildServer(config: Config, deps: ServerDeps): FastifyInstance {
   registerHealthRoute(app);
   registerWebfingerRoute(app, config);
   registerActorRoute(app, config, deps.publicKeyPem);
+  registerMediaRoute(app, config);
 
   return app;
 }

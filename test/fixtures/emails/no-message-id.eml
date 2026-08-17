@@ -1,0 +1,7 @@
+From: Dave <dave@example.com>
+To: jay@mail.example.com
+Subject: No Message-ID here
+Date: Mon, 17 Aug 2026 10:15:00 +0900
+Content-Type: text/plain; charset=utf-8
+
+This message never had a Message-ID header.

@@ -1,0 +1,20 @@
+From: Carol <carol@example.net>
+To: jay@mail.example.com
+Subject: Only HTML plus a file
+Message-ID: <html789@example.net>
+Date: Mon, 17 Aug 2026 10:10:00 +0900
+Content-Type: multipart/mixed; boundary="OUTER"
+
+--OUTER
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Only an <b>HTML</b> body here, no plain part.</p></body></html>
+
+--OUTER
+Content-Type: text/plain; charset=utf-8; name="notes.txt"
+Content-Disposition: attachment; filename="notes.txt"
+Content-Transfer-Encoding: base64
+
+aGVsbG8gd29ybGQ=
+
+--OUTER--
