@@ -7,6 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
+COPY scripts ./scripts
 RUN npm run build
 
 # --- prod-deps: 프로덕션 전용 node_modules + 네이티브 모듈 빌드 도구 -------
@@ -52,4 +53,10 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "dist/index.js"]
+# scripts/gen-actor-keys.ts, scripts/smoke-test-send-note.ts compile alongside src/
+# (see tsconfig.json's rootDir/include) specifically so they're runnable in here with
+# the container's real .env/keys/DB — e.g.
+# `docker compose exec apmail node dist/scripts/smoke-test-send-note.js` — rather than
+# only being runnable via `tsx` on a dev machine, which would spin up a *different*
+# actor identity than whatever's actually deployed.
+CMD ["node", "dist/src/index.js"]

@@ -16,8 +16,15 @@ docker compose -f docker/docker-compose.yml up -d apmail
 `apmail-attachments`)에 있어서 컨테이너를 다시 만들어도 그대로 남습니다. 재배포
 과정에서 이것들을 건드리는 부분은 없어요.
 
-Bare metal: `npm ci && npm run build && systemctl restart apmail` (또는
-`node dist/index.js`를 서비스로 감싸둔 방식에 맞게).
+**Bare metal (Docker 없이)**: `npm run dev`나 터미널에서 그냥 `node`로 띄우면
+SSH 세션 끊기거나 터미널 닫을 때 같이 죽습니다 — `systemd/apmail.service`
+템플릿으로 상시 서비스 등록하세요 (그 파일 안 주석에 설치 방법 있음). 등록해두면
+재배포는:
+
+```bash
+git pull && npm ci && npm run build
+sudo systemctl restart apmail
+```
 
 ## 로그 보기
 

@@ -38,6 +38,18 @@ npm run build      # tsc -> dist/, schema.sql도 같이 복사됨
 배포 직후에 확인용으로 쓰면 좋아요
 ([docs/misskey-followup-caveat.md](./docs/misskey-followup-caveat.md) 참고).
 
+**중요**: Docker로 배포했다면 이 스모크 테스트는 반드시 컨테이너 **안에서** 돌리세요:
+
+```bash
+docker compose -f docker/docker-compose.yml exec apmail node dist/scripts/smoke-test-send-note.js
+```
+
+호스트에서 그냥 `npm run smoke:send-note`(tsx)를 돌리면 컨테이너 안의 진짜 키/DB가 아니라
+호스트에 **별도의 새 액터 정체성**을 만들어서 테스트하게 되어, 실제로 배포된 봇과
+다른 봇으로 테스트하는 셈이 됩니다 — 결과가 의미 없거나 오히려 헷갈리는 원인이 될 수
+있어요. 로컬 개발(Docker 없이 그냥 `npm run dev`로 작업 중)일 때만 호스트에서
+`npm run smoke:send-note`를 쓰세요.
+
 ## 배포하기
 
 내가 소유한 도메인(브릿지 전용 서브도메인용), 서버, 자체 운영하는 Postfix가 필요합니다 —

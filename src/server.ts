@@ -5,6 +5,7 @@ import { registerActorRoute } from "./routes/actor.route";
 import { registerHealthRoute } from "./routes/health.route";
 import { registerInboxRoute } from "./routes/inbox.route";
 import { registerMediaRoute } from "./routes/media.route";
+import { registerNodeinfoRoute } from "./routes/nodeinfo.route";
 import { registerWebfingerRoute } from "./routes/webfinger.route";
 
 const AP_CONTENT_TYPES = ["application/activity+json", "application/ld+json"];
@@ -31,6 +32,7 @@ export function buildServer(config: Config, deps: ServerDeps): FastifyInstance {
   registerWebfingerRoute(app, config);
   registerActorRoute(app, config, deps.publicKeyPem);
   registerMediaRoute(app, config);
+  registerNodeinfoRoute(app, config);
   registerInboxRoute(app, config, deps);
 
   return app;

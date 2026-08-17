@@ -1,0 +1,45 @@
+# bare-metal(도커 없이) 배포용 systemd 유닛 템플릿.
+#
+# 설치:
+#   sudo cp systemd/apmail.service /etc/systemd/system/apmail.service
+#   sudo nano /etc/systemd/system/apmail.service   # WorkingDirectory/User 실제 값으로 수정
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now apmail
+#
+# 확인:
+#   systemctl status apmail
+#   journalctl -u apmail -f
+#
+# 코드 수정 후 재배포:
+#   npm ci && npm run build && sudo systemctl restart apmail
+#
+# .env는 여기서 EnvironmentFile로 따로 안 넘기고, WorkingDirectory를 저장소 경로로
+# 맞춰두면 npm run dev와 똑같이 dotenv가 그 안의 .env를 자동으로 읽습니다
+# (src/config.ts의 dotenv.config() 참고) — 설정을 두 군데 관리할 필요 없게.
+
+[Unit]
+Description=apmail - mail to ActivityPub bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# 실제 배포 경로로 바꾸세요 (예: /home/jay/apmail, /opt/apmail 등).
+# .env 파일이 이 디렉터리 안에 있어야 합니다.
+WorkingDirectory=/CHANGE/ME/apmail
+
+# 이 서버에서 이 서비스를 어느 계정으로 돌릴지. 개인 서버라 본인 로그인 계정을
+# 그대로 써도 무방합니다 — 전용 계정을 원하면 useradd로 만들고 여기 바꾸세요.
+User=CHANGE_ME
+
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+
+# 코어덤프 등 불필요한 산출물 방지, 최소 권한 원칙
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
